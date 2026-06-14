@@ -19,9 +19,10 @@ interface ExperienceData {
 interface ClimberTemplateProps {
   profile: ProfileData
   experiences: ExperienceData[]
+  isPreview?: boolean
 }
 
-export default function ClimberTemplate({ profile, experiences }: ClimberTemplateProps) {
+export default function ClimberTemplate({ profile, experiences, isPreview }: Readonly<ClimberTemplateProps>) {
   const totalYears = experiences.reduce((s, e) => s + e.years, 0)
   const mainSector = experiences[experiences.length - 1]?.sector || ''
 
@@ -89,12 +90,14 @@ export default function ClimberTemplate({ profile, experiences }: ClimberTemplat
           <GrowthTimeline experiences={experiences} />
         </section>
 
-        <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
-          <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
-          <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
-            Crea il tuo profilo →
-          </a>
-        </footer>
+        {!isPreview && (
+          <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
+            <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
+            <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
+              Crea il tuo profilo →
+            </a>
+          </footer>
+        )}
       </main>
     </div>
   )

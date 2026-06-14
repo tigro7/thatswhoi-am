@@ -9,7 +9,6 @@ import AdapterTemplate from '@/components/profile/AdapterTemplate'
 import ClimberTemplate from '@/components/profile/ClimberTemplate'
 import BuilderTemplate from '@/components/profile/BuilderTemplate'
 import { computeArchetype } from '@/lib/archetype'
-import { createClient } from '@/lib/supabase/client'
 import type { Experience, Archetype } from '@/lib/archetype'
 
 type Phase = 'experiences' | 'generating' | 'preview' | 'saving'
@@ -89,43 +88,12 @@ export default function OnboardingPage() {
     setPhase('experiences')
   }
 
-  async function handleAuthSuccess(userId: string, userEmail: string) {
+  // Save already happened in AuthGate via /api/save-profile — just redirect
+  function handleAuthSuccess(_userId: string, _userEmail: string) {
     if (!generated) return
     setPhase('saving')
-
-    try {
-      const supabase = createClient()
-
-      await supabase.from('profiles').upsert({
-        id: userId,
-        slug,
-        email: userEmail,
-        full_name: fullName,
-        archetype: generated.archetype,
-        headline: generated.headline,
-        last_updated_at: new Date().toISOString(),
-      })
-
-      await supabase.from('experiences').delete().eq('profile_id', userId)
-      await supabase.from('experiences').insert(
-        experiences.map((exp, i) => ({
-          profile_id: userId,
-          role: exp.role,
-          company: exp.company,
-          sector: exp.sector,
-          years: exp.years,
-          position: i,
-        }))
-      )
-
-      // Clear all pending state
-      ;[SS_SLUG, SS_NAME, SS_EXPERIENCES, SS_GENERATED].forEach(k => sessionStorage.removeItem(k))
-      router.push(`/${slug}`)
-    } catch (err) {
-      console.error('Save error:', err)
-      setPhase('preview')
-      alert('Errore nel salvataggio. Riprova.')
-    }
+    ;[SS_SLUG, SS_NAME, SS_EXPERIENCES, SS_GENERATED].forEach(k => sessionStorage.removeItem(k))
+    router.push(`/${slug}`)
   }
 
   if (phase === 'generating' || phase === 'saving') {
@@ -156,17 +124,24 @@ export default function OnboardingPage() {
         </div>
 
         {generated.archetype === 'climber' && (
-          <ClimberTemplate profile={previewProfile} experiences={experiences} />
+          <ClimberTemplate profile={previewProfile} experiences={experiences} isPreview />
         )}
         {generated.archetype === 'builder' && (
-          <BuilderTemplate profile={previewProfile} experiences={experiences} />
+          <BuilderTemplate profile={previewProfile} experiences={experiences} isPreview />
         )}
         {generated.archetype !== 'climber' && generated.archetype !== 'builder' && (
-          <AdapterTemplate profile={previewProfile} experiences={experiences} />
+          <AdapterTemplate profile={previewProfile} experiences={experiences} isPreview />
         )}
 
         <div className="max-w-2xl mx-auto px-6 pb-16">
-          <AuthGate slug={slug} fullName={fullName} onSuccess={handleAuthSuccess} />
+          <AuthGate
+            slug={slug}
+            fullName={fullName}
+            archetype={generated.archetype}
+            headline={generated.headline}
+            experiences={experiences}
+            onSuccess={handleAuthSuccess}
+          />
         </div>
       </div>
     )

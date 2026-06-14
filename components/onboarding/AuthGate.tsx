@@ -2,15 +2,22 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { Experience, Archetype } from '@/lib/archetype'
 
 interface AuthGateProps {
   slug: string
   fullName: string
+  archetype: Archetype
+  headline: string
+  experiences: Experience[]
   onSuccess: (userId: string, userEmail: string) => void
 }
 
-export default function AuthGate({ slug, onSuccess }: Readonly<AuthGateProps>) {
+type AuthPhase = 'form' | 'check-email'
+
+export default function AuthGate({ slug, fullName, archetype, headline, experiences, onSuccess }: Readonly<AuthGateProps>) {
   const [mode, setMode] = useState<'signup' | 'login'>('signup')
+  const [phase, setPhase] = useState<AuthPhase>('form')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,24 +27,78 @@ export default function AuthGate({ slug, onSuccess }: Readonly<AuthGateProps>) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    const supabase = createClient()
 
-    if (mode === 'signup') {
+    try {
+      const supabase = createClient()
+      console.log('[AuthGate] starting', mode)
+
+      if (mode === 'login') {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        console.log('[AuthGate] login result', { user: data.user?.id, error: signInError?.message })
+        if (signInError) { setError(signInError.message); setLoading(false); return }
+        if (!data.user) { setError('Login fallito. Riprova.'); setLoading(false); return }
+        // Save via service role (bypasses RLS, idempotent upsert)
+        await fetch('/api/save-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: data.user.id, slug, fullName, email, archetype, headline, experiences }),
+        })
+        onSuccess(data.user.id, email)
+        return
+      }
+
+      // Signup flow
       const { data, error: signUpError } = await supabase.auth.signUp({ email, password })
+      console.log('[AuthGate] signup result', { user: data.user?.id, session: !!data.session, error: signUpError?.message })
       if (signUpError) { setError(signUpError.message); setLoading(false); return }
-      if (data.user) onSuccess(data.user.id, email)
-    } else {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) { setError(signInError.message); setLoading(false); return }
-      if (data.user) onSuccess(data.user.id, email)
-    }
+      if (!data.user) {
+        // Supabase returns null silently when email exists (confirmed or not)
+        setError('Abbiamo già inviato una mail di conferma a questo indirizzo. Controlla la tua casella (anche lo spam).')
+        setLoading(false)
+        return
+      }
 
-    setLoading(false)
+      // Save profile server-side (bypasses RLS — works even before email confirmation)
+      const saveRes = await fetch('/api/save-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: data.user.id, slug, fullName, email, archetype, headline, experiences }),
+      })
+      console.log('[AuthGate] save-profile status', saveRes.status)
+
+      if (data.session) {
+        onSuccess(data.user.id, email)
+      } else {
+        setPhase('check-email')
+        setLoading(false)
+      }
+    } catch (err) {
+      console.error('[AuthGate] unexpected error', err)
+      setError('Errore inaspettato. Controlla la console.')
+      setLoading(false)
+    }
   }
 
-  const submitLabel = loading ? 'Attendere…' : mode === 'signup' ? 'Crea account e pubblica →' : 'Accedi e pubblica →'
+  if (phase === 'check-email') {
+    return (
+      <div className="border-t border-zinc-800 pt-10 mt-10 space-y-4 text-center">
+        <div className="text-3xl">📬</div>
+        <h2 className="text-white text-lg font-semibold">Controlla la tua mail</h2>
+        <p className="text-zinc-400 text-sm max-w-xs mx-auto">
+          Abbiamo inviato un link di conferma a <span className="text-white">{email}</span>.
+          Clicca il link per attivare il tuo account e il tuo profilo sarà subito online.
+        </p>
+        <p className="text-zinc-600 text-xs">
+          Non trovi la mail? Controlla la cartella spam.
+        </p>
+      </div>
+    )
+  }
+
   const signupTabClass = `flex-1 py-2.5 transition-colors ${mode === 'signup' ? 'bg-zinc-700 text-white' : 'bg-zinc-800/40 text-zinc-400 hover:text-zinc-200'}`
   const loginTabClass = `flex-1 py-2.5 transition-colors ${mode === 'login' ? 'bg-zinc-700 text-white' : 'bg-zinc-800/40 text-zinc-400 hover:text-zinc-200'}`
+  const actionLabel = mode === 'signup' ? 'Crea account e pubblica →' : 'Accedi e pubblica →'
+  const submitLabel = loading ? 'Attendere…' : actionLabel
 
   return (
     <div className="border-t border-zinc-800 pt-10 mt-10 space-y-6">
@@ -85,6 +146,12 @@ export default function AuthGate({ slug, onSuccess }: Readonly<AuthGateProps>) {
         >
           {submitLabel}
         </button>
+
+        {mode === 'signup' && (
+          <p className="text-zinc-600 text-xs text-center">
+            Riceverai una mail di conferma per attivare il tuo account.
+          </p>
+        )}
       </form>
     </div>
   )

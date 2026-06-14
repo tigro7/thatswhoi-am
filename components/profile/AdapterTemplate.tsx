@@ -19,9 +19,10 @@ interface ExperienceData {
 interface AdapterTemplateProps {
   profile: ProfileData
   experiences: ExperienceData[]
+  isPreview?: boolean
 }
 
-export default function AdapterTemplate({ profile, experiences }: AdapterTemplateProps) {
+export default function AdapterTemplate({ profile, experiences, isPreview }: Readonly<AdapterTemplateProps>) {
   const sectors = [...new Set(experiences.map(e => e.sector))]
   const roles = [...new Set(experiences.map(e => e.role))]
   const totalYears = experiences.reduce((s, e) => s + e.years, 0)
@@ -101,12 +102,14 @@ export default function AdapterTemplate({ profile, experiences }: AdapterTemplat
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
-          <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
-          <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
-            Crea il tuo profilo →
-          </a>
-        </footer>
+        {!isPreview && (
+          <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
+            <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
+            <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
+              Crea il tuo profilo →
+            </a>
+          </footer>
+        )}
       </main>
     </div>
   )

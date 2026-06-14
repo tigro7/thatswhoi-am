@@ -19,9 +19,10 @@ interface ExperienceData {
 interface BuilderTemplateProps {
   profile: ProfileData
   experiences: ExperienceData[]
+  isPreview?: boolean
 }
 
-export default function BuilderTemplate({ profile, experiences }: BuilderTemplateProps) {
+export default function BuilderTemplate({ profile, experiences, isPreview }: Readonly<BuilderTemplateProps>) {
   const totalYears = experiences.reduce((s, e) => s + e.years, 0)
   const uniqueSectors = new Set(experiences.map(e => e.sector)).size
 
@@ -99,12 +100,14 @@ export default function BuilderTemplate({ profile, experiences }: BuilderTemplat
           </div>
         </section>
 
-        <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
-          <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
-          <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
-            Crea il tuo profilo →
-          </a>
-        </footer>
+        {!isPreview && (
+          <footer className="border-t border-zinc-800/60 pt-6 flex items-center justify-between">
+            <p className="text-zinc-700 text-xs">thatswhoi.am/{profile.slug}</p>
+            <a href="/" className="text-zinc-700 text-xs hover:text-zinc-400 transition-colors">
+              Crea il tuo profilo →
+            </a>
+          </footer>
+        )}
       </main>
     </div>
   )
