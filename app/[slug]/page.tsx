@@ -8,6 +8,7 @@ import BuilderTemplate from '@/components/profile/BuilderTemplate'
 
 interface Props {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ print?: string }>
 }
 
 async function getProfile(slug: string) {
@@ -55,16 +56,27 @@ export async function generateMetadata({ params }: Readonly<Props>): Promise<Met
   }
 }
 
-export default async function ProfilePage({ params }: Readonly<Props>) {
-  const { slug } = await params
+export default async function ProfilePage({ params, searchParams }: Readonly<Props>) {
+  const [{ slug }, sp] = await Promise.all([params, searchParams])
   const data = await getProfile(slug)
 
   if (!data) notFound()
 
   const { profile, experiences, isOwner } = data
-  const showEnrichCta = isOwner && isProfileIncomplete(profile, experiences)
+  const isPrint = sp.print === 'true'
+  const showEnrichCta = isOwner && !isPrint && isProfileIncomplete(profile, experiences)
 
-  const templateProps = { profile, experiences }
+  const templateProps = { profile, experiences, isPrint }
+
+  let template: React.ReactNode
+  if (profile.archetype === 'builder') {
+    template = <BuilderTemplate {...templateProps} />
+  } else if (profile.archetype === 'adapter') {
+    template = <AdapterTemplate {...templateProps} />
+  } else {
+    // climber is default / fallback
+    template = <ClimberTemplate {...templateProps} />
+  }
 
   return (
     <>
@@ -78,9 +90,17 @@ export default async function ProfilePage({ params }: Readonly<Props>) {
           </div>
         </div>
       )}
-      {profile.archetype === 'climber' && <ClimberTemplate {...templateProps} />}
-      {profile.archetype === 'builder' && <BuilderTemplate {...templateProps} />}
-      {profile.archetype !== 'climber' && profile.archetype !== 'builder' && <AdapterTemplate {...templateProps} />}
+      {isOwner && !isPrint && (
+        <div className="max-w-2xl mx-auto px-6 pt-4 flex justify-end">
+          <a
+            href={`/api/export-pdf/${slug}`}
+            className="text-zinc-600 text-xs hover:text-zinc-300 transition-colors border border-zinc-800 rounded-lg px-3 py-1.5 hover:border-zinc-600"
+          >
+            Scarica PDF
+          </a>
+        </div>
+      )}
+      {template}
     </>
   )
 }
