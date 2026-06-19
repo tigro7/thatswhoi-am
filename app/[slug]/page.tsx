@@ -49,10 +49,24 @@ export async function generateMetadata({ params }: Readonly<Props>): Promise<Met
   const name = data.profile.full_name || slug
   const description = data.profile.headline || `Il profilo professionale di ${name}`
 
+  const ogImage = `/api/og?slug=${encodeURIComponent(slug)}`
+
   return {
     title: `${name} — thatswhoi.am`,
     description,
-    openGraph: { title: `${name} — thatswhoi.am`, description, type: 'profile' },
+    alternates: { canonical: `/${slug}` },
+    openGraph: {
+      title: `${name} — thatswhoi.am`,
+      description,
+      type: 'profile',
+      images: [{ url: ogImage, width: 1200, height: 630, alt: name }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${name} — thatswhoi.am`,
+      description,
+      images: [ogImage],
+    },
   }
 }
 

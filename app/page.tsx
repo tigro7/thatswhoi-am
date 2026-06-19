@@ -1,5 +1,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: 'thatswhoi.am — Il tuo profilo professionale in 5 minuti',
+    images: [{ url: '/api/og', width: 1200, height: 630, alt: 'thatswhoi.am' }],
+  },
+}
 
 interface Props {
   searchParams: Promise<{ code?: string }>
