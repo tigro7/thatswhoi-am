@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Routes that call Claude — rate-limited to prevent cost abuse
+// Routes that call Claude — 10 req / 10 min per IP
 const AI_ROUTES = new Set([
   '/api/generate-descriptions',
   '/api/generate-headline',
   '/api/infer-sector',
 ])
 
-// 10 requests per 10 minutes per IP — enough for a full enrichment flow
-// with retries, but blocks automated abuse
-const WINDOW = '10 m'
-const MAX_REQUESTS = 10
+// PDF generation spins up Chromium — 3 req / 5 min per IP
 
-async function rateLimit(req: NextRequest): Promise<NextResponse | null> {
+async function rateLimit(
+  req: NextRequest,
+  max: number,
+  window: `${number} ${'s' | 'm' | 'h' | 'd'}`,
+  prefix: string,
+): Promise<NextResponse | null> {
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
 
@@ -22,16 +24,15 @@ async function rateLimit(req: NextRequest): Promise<NextResponse | null> {
   const { Ratelimit } = await import('@upstash/ratelimit')
   const { Redis } = await import('@upstash/redis')
 
-  const ratelimit = new Ratelimit({
+  const limiter = new Ratelimit({
     redis: new Redis({ url: redisUrl, token: redisToken }),
-    limiter: Ratelimit.slidingWindow(MAX_REQUESTS, WINDOW),
+    limiter: Ratelimit.slidingWindow(max, window),
     analytics: false,
-    prefix: 'twhoi',
+    prefix,
   })
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? '127.0.0.1'
-  const identifier = `${req.nextUrl.pathname}:${ip}`
-  const { success, limit, remaining, reset } = await ratelimit.limit(identifier)
+  const { success, limit, remaining, reset } = await limiter.limit(ip)
 
   if (!success) {
     return NextResponse.json(
@@ -64,9 +65,13 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Rate limit AI routes
   if (AI_ROUTES.has(pathname)) {
-    const limited = await rateLimit(req)
+    const limited = await rateLimit(req, 10, '10 m', 'twhoi:ai')
+    if (limited) return limited
+  }
+
+  if (pathname.startsWith('/api/export-pdf/')) {
+    const limited = await rateLimit(req, 3, '5 m', 'twhoi:pdf')
     if (limited) return limited
   }
 
@@ -79,5 +84,6 @@ export const config = {
     '/api/generate-descriptions',
     '/api/generate-headline',
     '/api/infer-sector',
+    '/api/export-pdf/:path*',
   ],
 }

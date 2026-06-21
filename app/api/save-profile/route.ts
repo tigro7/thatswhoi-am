@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
 import type { Experience, Archetype } from '@/lib/archetype'
 
 interface SaveProfileBody {
@@ -44,7 +45,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Upsert profile
+    // Verify caller owns this userId — prevents profile hijacking
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (user.id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     await supabaseAdmin('profiles?on_conflict=id', 'POST', {
       id: userId,
       slug,
@@ -55,7 +65,6 @@ export async function POST(req: NextRequest) {
       last_updated_at: new Date().toISOString(),
     })
 
-    // Replace experiences
     await supabaseAdmin(`experiences?profile_id=eq.${userId}`, 'DELETE')
     if (experiences.length > 0) {
       await supabaseAdmin('experiences', 'POST',

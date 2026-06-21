@@ -63,11 +63,14 @@ export default function AuthGate({ slug, fullName, archetype, headline, experien
         return
       }
 
-      await saveProfile({ userId: data.user.id, ...profilePayload })
-
       if (data.session) {
+        // Autoconfirm enabled — session exists, save is authenticated
+        await saveProfile({ userId: data.user.id, ...profilePayload })
         onSuccess(data.user.id, email)
       } else {
+        // Email confirmation pending — no session yet, skip save.
+        // After confirming, user lands on /onboarding with their
+        // sessionStorage state intact and can re-publish with a valid session.
         setPhase('check-email')
         setLoading(false)
       }

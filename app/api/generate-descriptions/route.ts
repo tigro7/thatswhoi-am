@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 interface Experience {
   role: string
@@ -12,6 +13,13 @@ const client = new Anthropic()
 
 export async function POST(req: NextRequest) {
   try {
+    // Only authenticated users can generate descriptions (post-auth route)
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { experiences } = await req.json() as { experiences: Experience[] }
 
     if (!experiences?.length) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
 
 interface ExperienceUpdate {
   id: string
@@ -30,7 +31,7 @@ async function adminFetch(path: string, method: string, body?: unknown) {
       'Authorization': `Bearer ${key}`,
       'Prefer': 'return=minimal',
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body === undefined ? undefined : JSON.stringify(body),
   })
 
   if (!res.ok) {
@@ -48,7 +49,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
     }
 
-    // Update profile contact fields + skills
+    // Verify caller owns this userId — prevents profile data mutation
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (user.id !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     await adminFetch(`profiles?id=eq.${userId}`, 'PATCH', {
       linkedin_url: linkedin_url ?? null,
       github_url: github_url ?? null,
@@ -58,7 +68,6 @@ export async function POST(req: NextRequest) {
       last_updated_at: new Date().toISOString(),
     })
 
-    // Update each experience description individually
     await Promise.all(
       experienceDescriptions.map(({ id, description }) =>
         adminFetch(`experiences?id=eq.${id}`, 'PATCH', { description: description || null })
