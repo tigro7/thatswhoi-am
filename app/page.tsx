@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -10,18 +9,8 @@ export const metadata: Metadata = {
   },
 }
 
-interface Props {
-  searchParams: Promise<{ code?: string }>
-}
-
-// If Supabase redirects to /?code=... (misconfigured redirect URL),
-// forward to the proper auth callback handler
-export default async function HomePage({ searchParams }: Readonly<Props>) {
-  const { code } = await searchParams
-  if (code) {
-    redirect(`/auth/callback?code=${code}`)
-  }
-
+// No searchParams → statically prerendered. /?code= redirect is handled by middleware.ts
+export default function HomePage() {
   return (
     <main className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
       <div className="max-w-lg text-center space-y-8">

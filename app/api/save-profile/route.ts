@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import type { Experience, Archetype } from '@/lib/archetype'
 
 interface SaveProfileBody {
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    revalidatePath(`/${slug}`)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

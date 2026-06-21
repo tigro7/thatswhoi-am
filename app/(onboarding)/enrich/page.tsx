@@ -146,6 +146,7 @@ export default function EnrichPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: profile.id,
+          slug: profile.slug,
           linkedin_url: linkedin || null,
           github_url: github || null,
           website_url: website || null,

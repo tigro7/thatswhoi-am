@@ -41,7 +41,11 @@ export async function GET(req: NextRequest) {
 
   const truncatedHeadline = headline.length > 110 ? `${headline.slice(0, 107)}…` : headline
 
-  return new ImageResponse(
+  const cacheControl = slug
+    ? 'public, s-maxage=86400, stale-while-revalidate=604800'
+    : 'public, s-maxage=2592000, immutable'
+
+  const imageResponse = new ImageResponse(
     (
       <div
         style={{
@@ -85,4 +89,7 @@ export async function GET(req: NextRequest) {
     ),
     { width: 1200, height: 630 }
   )
+
+  imageResponse.headers.set('Cache-Control', cacheControl)
+  return imageResponse
 }

@@ -1,17 +1,22 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
+import { cache } from 'react'
 import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import AdapterTemplate from '@/components/profile/AdapterTemplate'
 import ClimberTemplate from '@/components/profile/ClimberTemplate'
 import BuilderTemplate from '@/components/profile/BuilderTemplate'
+import OwnerToolbar from '@/components/profile/OwnerToolbar'
+
+// ISR — public profiles are cached for 5 minutes, busted on-demand by save routes
+export const revalidate = 300
 
 interface Props {
   params: Promise<{ slug: string }>
   searchParams: Promise<{ print?: string }>
 }
 
-async function getProfile(slug: string) {
+// cache() deduplicates across generateMetadata + ProfilePage in the same request
+const getProfile = cache(async (slug: string) => {
   const supabase = await createClient()
 
   const { data: profile } = await supabase
@@ -28,10 +33,8 @@ async function getProfile(slug: string) {
     .eq('profile_id', profile.id)
     .order('position', { ascending: true })
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  return { profile, experiences: experiences ?? [], isOwner: user?.id === profile.id }
-}
+  return { profile, experiences: experiences ?? [] }
+})
 
 function isProfileIncomplete(profile: Record<string, unknown>, experiences: Array<Record<string, unknown>>) {
   const noContacts = !profile.linkedin_url && !profile.github_url && !profile.website_url
@@ -48,7 +51,6 @@ export async function generateMetadata({ params }: Readonly<Props>): Promise<Met
 
   const name = data.profile.full_name || slug
   const description = data.profile.headline || `Il profilo professionale di ${name}`
-
   const ogImage = `/api/og?slug=${encodeURIComponent(slug)}`
 
   return {
@@ -72,13 +74,13 @@ export async function generateMetadata({ params }: Readonly<Props>): Promise<Met
 
 export default async function ProfilePage({ params, searchParams }: Readonly<Props>) {
   const [{ slug }, sp] = await Promise.all([params, searchParams])
-  const data = await getProfile(slug)
+  const data = await getProfile(slug) // deduplicated — no extra DB round-trip
 
   if (!data) notFound()
 
-  const { profile, experiences, isOwner } = data
+  const { profile, experiences } = data
   const isPrint = sp.print === 'true'
-  const showEnrichCta = isOwner && !isPrint && isProfileIncomplete(profile, experiences)
+  const incomplete = isProfileIncomplete(profile, experiences)
 
   const templateProps = { profile, experiences, isPrint }
 
@@ -88,32 +90,13 @@ export default async function ProfilePage({ params, searchParams }: Readonly<Pro
   } else if (profile.archetype === 'adapter') {
     template = <AdapterTemplate {...templateProps} />
   } else {
-    // climber is default / fallback
     template = <ClimberTemplate {...templateProps} />
   }
 
   return (
     <>
-      {showEnrichCta && (
-        <div className="bg-zinc-900 border-b border-zinc-800">
-          <div className="max-w-2xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-            <p className="text-zinc-400 text-sm">Il tuo profilo è live. Aggiungi descrizioni, link e skills per renderlo ancora più completo.</p>
-            <Link href="/enrich" className="shrink-0 rounded-lg bg-white text-black text-xs font-medium px-3 py-1.5 hover:bg-zinc-100 transition-colors">
-              Completa →
-            </Link>
-          </div>
-        </div>
-      )}
-      {isOwner && !isPrint && (
-        <div className="max-w-2xl mx-auto px-6 pt-4 flex justify-end">
-          <a
-            href={`/api/export-pdf/${slug}`}
-            className="text-zinc-600 text-xs hover:text-zinc-300 transition-colors border border-zinc-800 rounded-lg px-3 py-1.5 hover:border-zinc-600"
-          >
-            Scarica PDF
-          </a>
-        </div>
-      )}
+      {/* Owner UI is client-side — keeps SSR/ISR output auth-agnostic */}
+      <OwnerToolbar profileId={profile.id} slug={slug} isIncomplete={incomplete} isPrint={isPrint} />
       {template}
     </>
   )

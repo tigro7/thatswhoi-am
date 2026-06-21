@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 
 interface ExperienceUpdate {
   id: string
@@ -7,6 +8,7 @@ interface ExperienceUpdate {
 
 interface SaveEnrichBody {
   userId: string
+  slug: string
   linkedin_url?: string
   github_url?: string
   website_url?: string
@@ -40,7 +42,7 @@ async function adminFetch(path: string, method: string, body?: unknown) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as SaveEnrichBody
-    const { userId, linkedin_url, github_url, website_url, contact_email, skills, experienceDescriptions } = body
+    const { userId, slug, linkedin_url, github_url, website_url, contact_email, skills, experienceDescriptions } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
@@ -63,6 +65,7 @@ export async function POST(req: NextRequest) {
       )
     )
 
+    if (slug) revalidatePath(`/${slug}`)
     return NextResponse.json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
