@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist } from 'next/font/google'
 import './globals.css'
+import { Analytics } from "@vercel/analytics/next"
 
 const geist = Geist({
   variable: '--font-geist',
@@ -32,6 +33,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="it" className={`${geist.variable} h-full antialiased`}>
+      <Analytics />
       <body className="min-h-full bg-zinc-950">{children}</body>
     </html>
   )
